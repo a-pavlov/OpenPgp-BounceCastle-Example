@@ -12,33 +12,14 @@ import java.security.GeneralSecurityException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Date;
 import java.util.Iterator;
 
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openpgp.PGPCompressedData;
-import org.bouncycastle.openpgp.PGPCompressedDataGenerator;
-import org.bouncycastle.openpgp.PGPEncryptedData;
-import org.bouncycastle.openpgp.PGPEncryptedDataGenerator;
-import org.bouncycastle.openpgp.PGPEncryptedDataList;
-import org.bouncycastle.openpgp.PGPException;
-import org.bouncycastle.openpgp.PGPLiteralData;
-import org.bouncycastle.openpgp.PGPObjectFactory;
-import org.bouncycastle.openpgp.PGPOnePassSignatureList;
-import org.bouncycastle.openpgp.PGPPrivateKey;
-import org.bouncycastle.openpgp.PGPPublicKey;
-import org.bouncycastle.openpgp.PGPPublicKeyEncryptedData;
-import org.bouncycastle.openpgp.PGPPublicKeyRing;
-import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
-import org.bouncycastle.openpgp.PGPSecretKey;
-import org.bouncycastle.openpgp.PGPSecretKeyRing;
-import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
-import org.bouncycastle.openpgp.PGPSignature;
-import org.bouncycastle.openpgp.PGPSignatureGenerator;
-import org.bouncycastle.openpgp.PGPSignatureList;
-import org.bouncycastle.openpgp.PGPUtil;
+import org.bouncycastle.openpgp.*;
 import org.bouncycastle.openpgp.operator.PBESecretKeyDecryptor;
 import org.bouncycastle.openpgp.operator.PublicKeyDataDecryptorFactory;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder;
@@ -135,13 +116,14 @@ public class PgpHelper {
      * decrypt the passed in message stream
      */
     @SuppressWarnings("unchecked")
-    public void decryptFile(InputStream in, OutputStream out, InputStream keyIn, char[] passwd)
+    public boolean decryptFile(InputStream in, OutputStream out, InputStream keyIn, char[] passwd)
             throws Exception {
         Security.addProvider(new BouncyCastleProvider());
         in = org.bouncycastle.openpgp.PGPUtil.getDecoderStream(in);
         PGPObjectFactory pgpF = new PGPObjectFactory(in);
         PGPEncryptedDataList enc;
         Object o = pgpF.nextObject();
+        if (o == null) return false;
         //
         // the first object might be a PGP marker packet.
         //
@@ -150,6 +132,7 @@ public class PgpHelper {
         } else {
             enc = (PGPEncryptedDataList) pgpF.nextObject();
         }
+
 
         //
         // find the secret key
@@ -175,29 +158,37 @@ public class PgpHelper {
 
         Object message = plainFact.nextObject();
 
-        if (message instanceof PGPCompressedData) {
-            PGPCompressedData cData = (PGPCompressedData) message;
-            PGPObjectFactory pgpFact = new PGPObjectFactory(cData.getDataStream());
+        while(message != null) {
+            if (message instanceof PGPCompressedData) {
+                PGPCompressedData cData = (PGPCompressedData) message;
+                PGPObjectFactory pgpFact = new PGPObjectFactory(cData.getDataStream());
 
-            message = pgpFact.nextObject();
-        }
-
-        if (message instanceof PGPLiteralData) {
-            PGPLiteralData ld = (PGPLiteralData) message;
-            InputStream unc = ld.getInputStream();
-
-            IOUtils.copy(unc, out);
-        } else if (message instanceof PGPOnePassSignatureList) {
-            throw new PGPException("Encrypted message contains a signed message - not literal data.");
-        } else {
-            throw new PGPException("Message is not a simple encrypted file - type unknown.");
-        }
-
-        if (pbe.isIntegrityProtected()) {
-            if (!pbe.verify()) {
-                throw new PGPException("Message failed integrity check");
+                message = pgpFact.nextObject();
             }
+
+            if (message instanceof PGPLiteralData) {
+                PGPLiteralData ld = (PGPLiteralData) message;
+                InputStream unc = ld.getInputStream();
+
+                IOUtils.copy(unc, out);
+            } else if (message instanceof PGPOnePassSignatureList) {
+                throw new PGPException("Encrypted message contains a signed message - not literal data.");
+            } else {
+                throw new PGPException("Message is not a simple encrypted file - type unknown.");
+            }
+
+            if (pbe.isIntegrityProtected()) {
+                if (!pbe.verify()) {
+                    throw new PGPException("Message failed integrity check");
+                }
+            }
+
+            message = plainFact.nextObject();
         }
+
+        boolean nextEncr = it.hasNext();
+
+        return true;
     }
 
     public void encryptFile(OutputStream out, String fileName,
@@ -236,6 +227,42 @@ public class PgpHelper {
         cOut.close();
 
         out.close();
+    }
+
+    public void encryptInputStream(OutputStream out
+            , InputStream in
+            , PGPPublicKey encKey
+            , boolean armor
+            , boolean withIntegrityCheck) throws IOException, NoSuchProviderException, PGPException {
+        Security.addProvider(new BouncyCastleProvider());
+
+        if (armor) {
+            out = new ArmoredOutputStream(out);
+        }
+
+        JcePGPDataEncryptorBuilder c = new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5).setWithIntegrityPacket(withIntegrityCheck).setSecureRandom(new SecureRandom()).setProvider("BC");
+        PGPEncryptedDataGenerator cPk = new PGPEncryptedDataGenerator(c);
+        JcePublicKeyKeyEncryptionMethodGenerator d = new JcePublicKeyKeyEncryptionMethodGenerator(encKey).setProvider(new BouncyCastleProvider()).setSecureRandom(new SecureRandom());
+        cPk.addMethod(d);
+
+        int len = 0;
+        byte chunk[] = new byte[100];
+        int num = 0;
+
+        while ((len = in.read(chunk, 0, chunk.length)) != -1) {
+            ByteArrayOutputStream bOut = new ByteArrayOutputStream();
+            //PGPCompressedDataGenerator comData = new PGPCompressedDataGenerator(
+            //        PGPCompressedData.ZIP);
+            PGPLiteralDataGenerator lData = new PGPLiteralDataGenerator();
+            OutputStream outputStream = lData.open(bOut, PGPLiteralData.BINARY, String.format("chunk_%d", num++), len, new Date());
+            outputStream.write(chunk, 0, len);
+            outputStream.close();
+            byte bytes[] = bOut.toByteArray();
+            assert bytes.length >= len;
+            OutputStream cOut = cPk.open(out, bytes.length);
+            cOut.write(bytes);
+            cOut.close();
+        }
     }
 
 

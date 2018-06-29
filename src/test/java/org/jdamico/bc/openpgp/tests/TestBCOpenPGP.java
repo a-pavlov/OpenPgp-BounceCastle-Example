@@ -3,15 +3,10 @@ package org.jdamico.bc.openpgp.tests;
 
 import org.junit.Before;
 import org.junit.Test;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
 
+import java.io.*;
 import java.util.Arrays;
 import java.util.Base64;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.InvalidKeyException;
@@ -26,6 +21,8 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.PGPException;
 import org.jdamico.bc.openpgp.utils.PgpHelper;
 import org.jdamico.bc.openpgp.utils.RSAKeyPairGenerator;
+
+import static org.junit.Assert.*;
 
 
 public class TestBCOpenPGP {
@@ -133,6 +130,42 @@ public class TestBCOpenPGP {
         System.out.println("signAndVerify() takes " + (int) ((System.currentTimeMillis() - start) / 1000) + " seconds.");
 
         assertTrue(res);
+    }
+
+
+    @Test
+    public void testInputStreamEncryption() throws Exception {
+
+        genKeyPair();
+        byte bytes[] = new byte[200];
+
+        for(int i = 0; i < bytes.length; ++i) bytes[i] = (byte)(0x30 + i/100);
+
+        FileInputStream pubKeyIs = new FileInputStream(pubKeyFile);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        PgpHelper.getInstance().encryptInputStream(outputStream
+                , new ByteArrayInputStream(bytes)
+                , PgpHelper.getInstance().readPublicKey(pubKeyIs)
+                , isArmored
+                , integrityCheck);
+
+        outputStream.flush();
+        byte bytesOut[] = outputStream.toByteArray();
+        outputStream.close();
+
+        ByteArrayOutputStream plainOutput = new ByteArrayOutputStream();
+        ByteArrayInputStream chIn = new ByteArrayInputStream(bytesOut);
+
+        while(PgpHelper.getInstance().decryptFile(chIn
+                , plainOutput
+                , new FileInputStream(privKeyFile)
+                , passwd.toCharArray())) {
+        }
+
+
+        byte[] plainRes = plainOutput.toByteArray();
+        assertEquals(bytes.length, plainRes.length);
     }
 
 }
