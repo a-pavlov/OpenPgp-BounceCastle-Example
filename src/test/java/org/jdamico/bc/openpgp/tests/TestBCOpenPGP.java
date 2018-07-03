@@ -137,7 +137,7 @@ public class TestBCOpenPGP {
     public void testInputStreamEncryption() throws Exception {
 
         genKeyPair();
-        byte bytes[] = new byte[200];
+        byte bytes[] = new byte[1000];
 
         for(int i = 0; i < bytes.length; ++i) bytes[i] = (byte)(0x30 + i/100);
 
@@ -157,12 +157,10 @@ public class TestBCOpenPGP {
         ByteArrayOutputStream plainOutput = new ByteArrayOutputStream();
         ByteArrayInputStream chIn = new ByteArrayInputStream(bytesOut);
 
-        while(PgpHelper.getInstance().decryptFile(chIn
+        PgpHelper.getInstance().decryptFile(chIn
                 , plainOutput
                 , new FileInputStream(privKeyFile)
-                , passwd.toCharArray())) {
-        }
-
+                , passwd.toCharArray());
 
         byte[] plainRes = plainOutput.toByteArray();
         assertEquals(bytes.length, plainRes.length);

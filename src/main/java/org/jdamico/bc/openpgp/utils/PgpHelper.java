@@ -116,14 +116,14 @@ public class PgpHelper {
      * decrypt the passed in message stream
      */
     @SuppressWarnings("unchecked")
-    public boolean decryptFile(InputStream in, OutputStream out, InputStream keyIn, char[] passwd)
+    public void decryptFile(InputStream in, OutputStream out, InputStream keyIn, char[] passwd)
             throws Exception {
         Security.addProvider(new BouncyCastleProvider());
         in = org.bouncycastle.openpgp.PGPUtil.getDecoderStream(in);
         PGPObjectFactory pgpF = new PGPObjectFactory(in);
         PGPEncryptedDataList enc;
         Object o = pgpF.nextObject();
-        if (o == null) return false;
+
         //
         // the first object might be a PGP marker packet.
         //
@@ -158,7 +158,7 @@ public class PgpHelper {
 
         Object message = plainFact.nextObject();
 
-        while(message != null) {
+        if (message != null) {
             if (message instanceof PGPCompressedData) {
                 PGPCompressedData cData = (PGPCompressedData) message;
                 PGPObjectFactory pgpFact = new PGPObjectFactory(cData.getDataStream());
@@ -182,13 +182,7 @@ public class PgpHelper {
                     throw new PGPException("Message failed integrity check");
                 }
             }
-
-            message = plainFact.nextObject();
         }
-
-        boolean nextEncr = it.hasNext();
-
-        return true;
     }
 
     public void encryptFile(OutputStream out, String fileName,
@@ -208,6 +202,7 @@ public class PgpHelper {
         org.bouncycastle.openpgp.PGPUtil.writeFileToLiteralData(comData.open(bOut),
                 PGPLiteralData.BINARY, new File(fileName));
 
+
         comData.close();
 
         JcePGPDataEncryptorBuilder c = new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5).setWithIntegrityPacket(withIntegrityCheck).setSecureRandom(new SecureRandom()).setProvider("BC");
@@ -225,7 +220,6 @@ public class PgpHelper {
         cOut.write(bytes);
 
         cOut.close();
-
         out.close();
     }
 
@@ -249,20 +243,26 @@ public class PgpHelper {
         byte chunk[] = new byte[100];
         int num = 0;
 
+        ByteArrayOutputStream bOut = new ByteArrayOutputStream();
+        PGPLiteralDataGenerator lData = new PGPLiteralDataGenerator();
+
+        PGPCompressedDataGenerator comData = new PGPCompressedDataGenerator(
+                PGPCompressedData.ZIP);
+        OutputStream outputStream = lData.open(comData.open(bOut), PGPLiteralData.BINARY, String.format("chunk_%d", num++), new Date(), new byte[26]);
+
         while ((len = in.read(chunk, 0, chunk.length)) != -1) {
-            ByteArrayOutputStream bOut = new ByteArrayOutputStream();
-            //PGPCompressedDataGenerator comData = new PGPCompressedDataGenerator(
-            //        PGPCompressedData.ZIP);
-            PGPLiteralDataGenerator lData = new PGPLiteralDataGenerator();
-            OutputStream outputStream = lData.open(bOut, PGPLiteralData.BINARY, String.format("chunk_%d", num++), len, new Date());
             outputStream.write(chunk, 0, len);
-            outputStream.close();
-            byte bytes[] = bOut.toByteArray();
-            assert bytes.length >= len;
-            OutputStream cOut = cPk.open(out, bytes.length);
-            cOut.write(bytes);
-            cOut.close();
         }
+
+        outputStream.close();
+        comData.close();
+
+        byte bytes[] = bOut.toByteArray();
+        assert bytes.length >= len;
+        OutputStream cOut = cPk.open(out, bytes.length);
+        cOut.write(bytes);
+        cOut.close();
+        out.close();
     }
 
 
