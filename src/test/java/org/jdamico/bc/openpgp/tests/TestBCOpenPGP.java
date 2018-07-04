@@ -52,10 +52,6 @@ public class TestBCOpenPGP {
             new SecureRandom().nextBytes(rand);
             Files.write(Paths.get(plainTextFile), Base64.getEncoder().encode(rand));
         }
-    }
-
-    @Test
-    public void genKeyPair() throws InvalidKeyException, NoSuchProviderException, SignatureException, IOException, PGPException, NoSuchAlgorithmException {
 
         RSAKeyPairGenerator rkpg = new RSAKeyPairGenerator();
 
@@ -135,8 +131,6 @@ public class TestBCOpenPGP {
 
     @Test
     public void testInputStreamEncryption() throws Exception {
-
-        genKeyPair();
         byte bytes[] = new byte[1000];
 
         for(int i = 0; i < bytes.length; ++i) bytes[i] = (byte)(0x30 + i/100);
@@ -164,6 +158,6 @@ public class TestBCOpenPGP {
 
         byte[] plainRes = plainOutput.toByteArray();
         assertEquals(bytes.length, plainRes.length);
+        assertArrayEquals(bytes, plainRes);
     }
-
 }
