@@ -227,7 +227,9 @@ public class PgpHelper {
             , InputStream in
             , PGPPublicKey encKey
             , boolean armor
-            , boolean withIntegrityCheck) throws IOException, NoSuchProviderException, PGPException {
+            , boolean withIntegrityCheck
+            , String name
+            , Date dt) throws IOException, NoSuchProviderException, PGPException {
         Security.addProvider(new BouncyCastleProvider());
 
         if (armor) {
@@ -241,14 +243,13 @@ public class PgpHelper {
 
         int len = 0;
         byte chunk[] = new byte[100];
-        int num = 0;
 
         ByteArrayOutputStream bOut = new ByteArrayOutputStream();
         PGPLiteralDataGenerator lData = new PGPLiteralDataGenerator();
 
-        PGPCompressedDataGenerator comData = new PGPCompressedDataGenerator(
-                PGPCompressedData.ZIP);
-        OutputStream outputStream = lData.open(comData.open(bOut), PGPLiteralData.BINARY, String.format("chunk_%d", num++), new Date(), new byte[26]);
+        PGPCompressedDataGenerator comData = new PGPCompressedDataGenerator(PGPCompressedData.ZIP);
+
+        OutputStream outputStream = lData.open(comData.open(bOut), PGPLiteralData.BINARY, name!=null?name:"data", dt!=null?dt:new Date(), new byte[26]);
 
         while ((len = in.read(chunk, 0, chunk.length)) != -1) {
             outputStream.write(chunk, 0, len);

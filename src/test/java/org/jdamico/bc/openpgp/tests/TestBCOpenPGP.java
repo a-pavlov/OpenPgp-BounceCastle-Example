@@ -2,6 +2,8 @@ package org.jdamico.bc.openpgp.tests;
 
 
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.*;
@@ -27,22 +29,22 @@ import static org.junit.Assert.*;
 
 public class TestBCOpenPGP {
 
-    private boolean isArmored = true;
-    private String id = "damico";
-    private String passwd = "******";
-    private boolean integrityCheck = true;
+    private static boolean isArmored = true;
+    private static String id = "damico";
+    private static String passwd = "******";
+    private static boolean integrityCheck = true;
 
 
-    private String pubKeyFile = "test_out/pub.asc";
-    private String privKeyFile = "test_out/secret.asc";
+    private static String pubKeyFile = "test_out/pub.asc";
+    private static String privKeyFile = "test_out/secret.asc";
 
-    private String plainTextFile = "test_out/plain-text.txt";
-    private String cipherTextFile = "test_out/cypher-text.asc";
-    private String decPlainTextFile = "test_out/dec-plain-text.txt";
-    private String signatureFile = "test_out/signature.txt";
+    private static String plainTextFile = "test_out/plain-text.txt";
+    private static String cipherTextFile = "test_out/cypher-text.asc";
+    private static String decPlainTextFile = "test_out/dec-plain-text.txt";
+    private static String signatureFile = "test_out/signature.txt";
 
-    @Before
-    public void setUp() throws Exception {
+    @BeforeClass
+    public static void setUp() throws Exception {
         if (Files.notExists(Paths.get("test_out"))) {
             Files.createDirectory(Paths.get("test_out"));
         }
@@ -52,7 +54,10 @@ public class TestBCOpenPGP {
             new SecureRandom().nextBytes(rand);
             Files.write(Paths.get(plainTextFile), Base64.getEncoder().encode(rand));
         }
+    }
 
+    @BeforeClass
+    public static void genKeyPair() throws InvalidKeyException, NoSuchProviderException, SignatureException, IOException, PGPException, NoSuchAlgorithmException {
         RSAKeyPairGenerator rkpg = new RSAKeyPairGenerator();
 
         Security.addProvider(new BouncyCastleProvider());
@@ -133,7 +138,7 @@ public class TestBCOpenPGP {
     public void testInputStreamEncryption() throws Exception {
         byte bytes[] = new byte[1000];
 
-        for(int i = 0; i < bytes.length; ++i) bytes[i] = (byte)(0x30 + i/100);
+        for (int i = 0; i < bytes.length; ++i) bytes[i] = (byte) (0x30 + i / 100);
 
         FileInputStream pubKeyIs = new FileInputStream(pubKeyFile);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -142,7 +147,9 @@ public class TestBCOpenPGP {
                 , new ByteArrayInputStream(bytes)
                 , PgpHelper.getInstance().readPublicKey(pubKeyIs)
                 , isArmored
-                , integrityCheck);
+                , integrityCheck
+                , null
+                , null);
 
         outputStream.flush();
         byte bytesOut[] = outputStream.toByteArray();
