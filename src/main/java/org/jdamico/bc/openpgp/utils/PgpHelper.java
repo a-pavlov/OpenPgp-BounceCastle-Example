@@ -1,6 +1,5 @@
 package org.jdamico.bc.openpgp.utils;
 
-import org.apache.commons.io.IOUtils;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -44,6 +43,19 @@ public class PgpHelper {
 
         if (INSTANCE == null) INSTANCE = new PgpHelper();
         return INSTANCE;
+    }
+
+
+    private static long copy(InputStream input, OutputStream output) throws IOException {
+        byte[] buffer = new byte[4096];
+        long count = 0L;
+
+        int n1;
+        for(;-1 != (n1 = input.read(buffer)); count += (long)n1) {
+            output.write(buffer, 0, n1);
+        }
+
+        return count;
     }
 
     private PgpHelper() {
@@ -170,7 +182,7 @@ public class PgpHelper {
                 PGPLiteralData ld = (PGPLiteralData) message;
                 InputStream unc = ld.getInputStream();
 
-                IOUtils.copy(unc, out);
+                copy(unc, out);
             } else if (message instanceof PGPOnePassSignatureList) {
                 throw new PGPException("Encrypted message contains a signed message - not literal data.");
             } else {
