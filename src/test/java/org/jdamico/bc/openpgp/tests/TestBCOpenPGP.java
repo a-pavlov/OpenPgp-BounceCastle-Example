@@ -1,6 +1,12 @@
 package org.jdamico.bc.openpgp.tests;
 
 
+import org.bouncycastle.openpgp.PGPEncryptedData;
+import org.bouncycastle.openpgp.PGPEncryptedDataGenerator;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.operator.jcajce.JcePGPDataEncryptorBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcePublicKeyKeyEncryptionMethodGenerator;
+import org.jdamico.bc.openpgp.utils.PgpPackageBuilder;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -72,6 +78,8 @@ public class TestBCOpenPGP {
         FileOutputStream out2 = new FileOutputStream(pubKeyFile);
 
         rkpg.exportKeyPair(out1, out2, kp.getPublic(), kp.getPrivate(), id, passwd.toCharArray(), isArmored);
+        out1.close();
+        out2.close();
     }
 
     @Test
@@ -157,6 +165,46 @@ public class TestBCOpenPGP {
 
         ByteArrayOutputStream plainOutput = new ByteArrayOutputStream();
         ByteArrayInputStream chIn = new ByteArrayInputStream(bytesOut);
+
+        PgpHelper.getInstance().decryptFile(chIn
+                , plainOutput
+                , new FileInputStream(privKeyFile)
+                , passwd.toCharArray());
+
+        byte[] plainRes = plainOutput.toByteArray();
+        assertEquals(bytes.length, plainRes.length);
+        assertArrayEquals(bytes, plainRes);
+    }
+
+    @Test
+    public void testPacketBuilder() throws Exception {
+        PGPPublicKey encKey = PgpHelper.getInstance().readPublicKey(new FileInputStream(pubKeyFile));
+        PGPEncryptedDataGenerator cPk = new PGPEncryptedDataGenerator(new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5).setWithIntegrityPacket(true).setSecureRandom(new SecureRandom()).setProvider("BC"));
+        cPk.addMethod(new JcePublicKeyKeyEncryptionMethodGenerator(encKey).setProvider(new BouncyCastleProvider()).setSecureRandom(new SecureRandom()));
+
+        // prepare input data
+        byte bytes[] = new byte[10000];
+        for (int i = 0; i < bytes.length; ++i) bytes[i] = (byte) (0x30 + i / 100);
+
+        PgpPackageBuilder pgpPkg = new PgpPackageBuilder("xxx", null);
+        pgpPkg.write(bytes, 0, 1000);
+        pgpPkg.write(bytes, 1000, 8999);
+        pgpPkg.write(bytes, 9999, 1);
+        assertEquals(10000, pgpPkg.getRawBytes());
+
+        byte[] packetBytes = pgpPkg.flushPacket();
+        assertTrue(packetBytes.length > 0);
+
+        ByteArrayOutputStream encrStream = new ByteArrayOutputStream();
+
+        {
+            OutputStream cOut = cPk.open(encrStream, packetBytes.length);
+            cOut.write(packetBytes);
+            cOut.close();
+        }
+
+        ByteArrayInputStream chIn = new ByteArrayInputStream(encrStream.toByteArray());
+        ByteArrayOutputStream plainOutput = new ByteArrayOutputStream();
 
         PgpHelper.getInstance().decryptFile(chIn
                 , plainOutput
