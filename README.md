@@ -7,8 +7,9 @@ This is an OpenPgp + BounceCastle, Java Example, for education. Check the 3 test
 * encrypt()
 * decrypt()
 
-Class PgpPackageBuilder for building PGP packages with unknown size in advance.
-Class PgpDecryptedStream for usage with InputStream source as on the fly stream decryptor.
+More examples:
+* Class PgpPackageBuilder for building PGP packages with unknown size in advance.
+* Class PgpDecryptedStream for usage with InputStream source as on the fly stream decryptor.
 
 ------
 
