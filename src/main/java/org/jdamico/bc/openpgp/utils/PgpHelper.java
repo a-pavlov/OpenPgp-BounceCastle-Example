@@ -108,7 +108,7 @@ public class PgpHelper {
      * @throws PGPException
      * @throws NoSuchProviderException
      */
-    public PGPPrivateKey findSecretKey(InputStream keyIn, long keyID, char[] pass)
+    public static PGPPrivateKey findSecretKey(InputStream keyIn, long keyID, char[] pass)
             throws IOException, PGPException, NoSuchProviderException {
         PGPSecretKeyRingCollection pgpSec = new PGPSecretKeyRingCollection(
                 org.bouncycastle.openpgp.PGPUtil.getDecoderStream(keyIn));

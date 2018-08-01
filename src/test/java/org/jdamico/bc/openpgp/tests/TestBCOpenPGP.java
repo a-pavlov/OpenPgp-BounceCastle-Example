@@ -6,6 +6,7 @@ import org.bouncycastle.openpgp.PGPEncryptedDataGenerator;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.operator.jcajce.JcePGPDataEncryptorBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcePublicKeyKeyEncryptionMethodGenerator;
+import org.jdamico.bc.openpgp.utils.PgpDecryptedStream;
 import org.jdamico.bc.openpgp.utils.PgpPackageBuilder;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -118,6 +119,29 @@ public class TestBCOpenPGP {
         byte[] newF = Files.readAllBytes(Paths.get(decPlainTextFile));
 
         assertArrayEquals(orgF, newF);
+    }
+
+    @Test
+    public void testDecryptOnStream() throws Exception {
+        byte[] orgF = Files.readAllBytes(Paths.get(plainTextFile));
+
+        PgpDecryptedStream decryptedIn = new PgpDecryptedStream(new FileInputStream(cipherTextFile), new FileInputStream(privKeyFile), passwd.toCharArray());
+        InputStream plainIn = new FileInputStream(plainTextFile);
+
+        int num1 = 0;
+        int num2 = 0;
+        int total = 0;
+
+        while(num1 > -1 && num2 > -1) {
+            num1 = plainIn.read();
+            num2 = decryptedIn.read();
+            assertEquals(num1, num2);
+            ++total;
+        }
+
+        assertEquals(orgF.length, total - 1);
+        plainIn.close();
+        decryptedIn.close();
     }
 
     @Test
